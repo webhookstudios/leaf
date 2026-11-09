@@ -34,7 +34,8 @@ COLORS = {
 }
 DEFAULT_COLOR = "yellow"
 DEFAULT_SIZE = (280, 300)
-MIN_SIZE = (160, 120)
+MIN_SIZE = (170, 160)
+SNAP_DIST = 24  # px from a screen edge/corner at which a note snaps
 FONT_SIZES = [10, 11, 12, 13, 14, 16, 18, 22]
 
 
@@ -81,7 +82,12 @@ class Note(Gtk.Window):
         # ---- header: drag handle + buttons ----
         self.header = Gtk.EventBox()
         self.header.get_style_context().add_class("note-header")
+        self.header.add_events(Gdk.EventMask.POINTER_MOTION_MASK
+                               | Gdk.EventMask.BUTTON_RELEASE_MASK)
         self.header.connect("button-press-event", self.on_header_press)
+        self.header.connect("motion-notify-event", self.on_header_motion)
+        self.header.connect("button-release-event", self.on_header_release)
+        self.drag = None
         hbox = Gtk.Box(spacing=2)
         self.header.add(hbox)
 
@@ -180,10 +186,42 @@ class Note(Gtk.Window):
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
 
     # ---------- events ----------
+    # Dragging is handled here instead of begin_move_drag() so the window
+    # manager never sees a "move" and can't tile/maximize the note at screen
+    # edges. We snap to edges and corners ourselves.
     def on_header_press(self, widget, ev):
         if ev.button == 1:
-            self.begin_move_drag(1, int(ev.x_root), int(ev.y_root), ev.time)
+            x, y = self.get_position()
+            self.drag = (ev.x_root - x, ev.y_root - y)
         return True
+
+    def on_header_motion(self, widget, ev):
+        if not self.drag:
+            return False
+        x = int(ev.x_root - self.drag[0])
+        y = int(ev.y_root - self.drag[1])
+        self.move(*self.snap(x, y, ev.x_root, ev.y_root))
+        return True
+
+    def on_header_release(self, widget, ev):
+        self.drag = None
+        return True
+
+    def snap(self, x, y, px, py):
+        """Snap the note's edges/corners to the usable screen area (panels excluded)."""
+        display = Gdk.Display.get_default()
+        mon = display.get_monitor_at_point(int(px), int(py))
+        wa = mon.get_workarea()
+        w, h = self.get_size()
+        if abs(x - wa.x) <= SNAP_DIST:
+            x = wa.x
+        elif abs(x + w - (wa.x + wa.width)) <= SNAP_DIST:
+            x = wa.x + wa.width - w
+        if abs(y - wa.y) <= SNAP_DIST:
+            y = wa.y
+        elif abs(y + h - (wa.y + wa.height)) <= SNAP_DIST:
+            y = wa.y + wa.height - h
+        return x, y
 
     def on_grip_press(self, widget, ev):
         if ev.button == 1:
@@ -239,11 +277,13 @@ class Note(Gtk.Window):
 
     def show_menu(self, *_):
         pop = Gtk.Popover.new(self.menu_btn)
+        pop.set_position(Gtk.PositionType.BOTTOM)
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         box.set_border_width(10)
 
-        swatches = Gtk.Box(spacing=6)
-        for name, (paper, header, _t) in COLORS.items():
+        # Compact 4-column grid so the popover fits inside even the narrowest note.
+        swatches = Gtk.Grid(column_spacing=6, row_spacing=6)
+        for i, (name, (paper, header, _t)) in enumerate(COLORS.items()):
             b = Gtk.Button()
             b.set_size_request(24, 24)
             b.set_tooltip_text(name.capitalize())
@@ -253,17 +293,18 @@ class Note(Gtk.Window):
                 f"min-width: 24px; min-height: 24px; padding: 0; }}".encode())
             b.get_style_context().add_provider(p, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
             b.connect("clicked", self.set_color, name, pop)
-            swatches.pack_start(b, False, False, 0)
+            swatches.attach(b, i % 4, i // 4, 1, 1)
         box.pack_start(swatches, False, False, 0)
 
-        sizes = Gtk.Box(spacing=6)
-        sizes.pack_start(Gtk.Label(label="Text size"), False, False, 0)
+        sizes = Gtk.Box(spacing=6, homogeneous=True)
         smaller = Gtk.Button.new_with_label("A−")
         bigger = Gtk.Button.new_with_label("A+")
+        smaller.set_tooltip_text("Smaller text")
+        bigger.set_tooltip_text("Bigger text")
         smaller.connect("clicked", self.step_font, -1)
         bigger.connect("clicked", self.step_font, +1)
-        sizes.pack_end(bigger, False, False, 0)
-        sizes.pack_end(smaller, False, False, 0)
+        sizes.pack_start(smaller, True, True, 0)
+        sizes.pack_start(bigger, True, True, 0)
         box.pack_start(sizes, False, False, 0)
 
         pop.add(box)
