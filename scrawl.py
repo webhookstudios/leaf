@@ -36,6 +36,7 @@ COLORS = {
 DEFAULT_COLOR = "yellow"
 DEFAULT_SIZE = (280, 300)
 MIN_SIZE = (170, 160)
+CLICK_SLOP = 8  # px the pointer may wander during a click before it counts as a drag
 SNAP_DIST = 24  # px from a screen edge/corner at which a note snaps
 FONT_SIZES = [10, 11, 12, 13, 14, 16, 18, 22]
 
@@ -238,6 +239,9 @@ class Note(Gtk.Window):
         return False
 
     def on_header_press(self, widget, ev):
+        if ev.button == 3:  # right-click anywhere on the header also renames
+            self.start_edit()
+            return True
         if ev.button != 1:
             return True
         if self.is_double_click(ev):
@@ -256,8 +260,9 @@ class Note(Gtk.Window):
     def on_header_motion(self, widget, ev):
         if not self.drag:
             return False
-        if not self.moved and (abs(ev.x_root - self.drag_start[0]) > 3
-                               or abs(ev.y_root - self.drag_start[1]) > 3):
+        # Trackpad clicks jitter a few pixels; don't call that a drag.
+        if not self.moved and (abs(ev.x_root - self.drag_start[0]) > CLICK_SLOP
+                               or abs(ev.y_root - self.drag_start[1]) > CLICK_SLOP):
             self.moved = True
         if not self.moved:
             return True
