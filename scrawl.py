@@ -7,6 +7,7 @@ import os
 os.environ.setdefault("GDK_BACKEND", "x11")
 
 import json
+import signal
 import sys
 import uuid
 import tempfile
@@ -53,7 +54,17 @@ def save_notes(notes):
     fd, tmp = tempfile.mkstemp(dir=DATA_DIR)
     with os.fdopen(fd, "w") as f:
         json.dump(notes, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())  # force the data onto the disk, not just the OS cache
     os.replace(tmp, DATA_FILE)  # atomic: never leaves a half-written file
+    try:  # make the rename itself durable too
+        dfd = os.open(DATA_DIR, os.O_RDONLY)
+        try:
+            os.fsync(dfd)
+        finally:
+            os.close(dfd)
+    except OSError:
+        pass
 
 
 class Note(Gtk.Window):
@@ -346,6 +357,19 @@ class Scrawl(Gtk.Application):
         self.notes = []
         self.started = False
         self.add_main_option("new", ord("n"), 0, 0, "Create a new note", None)
+        # Logout/shutdown sends SIGTERM (or SIGHUP): save immediately, don't wait
+        # for the 0.4s typing debounce.
+        for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+            GLib.unix_signal_add(GLib.PRIORITY_HIGH, sig, self.on_signal)
+
+    def on_signal(self):
+        self.persist()
+        self.quit()
+        return GLib.SOURCE_REMOVE
+
+    def do_shutdown(self):
+        self.persist()
+        Gtk.Application.do_shutdown(self)
 
     def do_command_line(self, cmdline):
         opts = cmdline.get_options_dict().end().unpack()
