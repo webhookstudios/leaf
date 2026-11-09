@@ -16,7 +16,7 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
-from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 DATA_DIR = os.path.join(
     os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "scrawl"
@@ -106,7 +106,25 @@ class Note(Gtk.Window):
         add_btn.connect("clicked", lambda *_: app.new_note())
         hbox.pack_start(add_btn, False, False, 0)
 
-        hbox.pack_start(Gtk.Box(), True, True, 0)  # spacer = drag area
+        # Title: a label you can click to rename (swaps to an entry). The rest of
+        # the header drags the note; double-click anywhere on it rolls the note up.
+        self.title_stack = Gtk.Stack()
+        self.title_label = Gtk.Label(xalign=0)
+        self.title_label.set_ellipsize(Pango.EllipsizeMode.END)
+        self.title_label.set_width_chars(1)
+        self.title_label.get_style_context().add_class("note-title")
+        self.title_entry = Gtk.Entry(has_frame=False, max_length=80, width_chars=1)
+        self.title_entry.set_placeholder_text("Title")
+        self.title_entry.connect("activate", lambda *_: self.stop_edit(True))
+        self.title_entry.connect("focus-out-event", lambda *_: self.stop_edit(True) or False)
+        self.title_entry.connect("key-press-event", self.on_title_key)
+        self.title_entry.connect("button-press-event", self.on_title_click)
+        self.title_stack.add_named(self.title_label, "label")
+        self.title_stack.add_named(self.title_entry, "entry")
+        hbox.pack_start(self.title_stack, True, True, 4)
+        self.header.set_tooltip_text("Drag to move \u2022 click title to rename \u2022 double-click to roll up")
+        self.last_click = None
+        self.editing = False
 
         self.pin_btn = self.icon_button("view-pin-symbolic", "Keep on top")
         self.pin_btn.connect("clicked", self.toggle_pin)
@@ -123,7 +141,7 @@ class Note(Gtk.Window):
         root.pack_start(self.header, False, False, 0)
 
         # ---- text body ----
-        scroll = Gtk.ScrolledWindow()
+        self.scroll = scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         self.view = Gtk.TextView()
         self.view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
@@ -138,7 +156,7 @@ class Note(Gtk.Window):
         root.pack_start(scroll, True, True, 0)
 
         # ---- resize grip (bottom-right) ----
-        grip_row = Gtk.Box()
+        self.grip_row = grip_row = Gtk.Box()
         grip_row.pack_start(Gtk.Box(), True, True, 0)
         grip = Gtk.EventBox()
         grip.set_size_request(18, 18)
@@ -159,6 +177,9 @@ class Note(Gtk.Window):
         if "pos" in data:
             self.move(*data["pos"])
         self.pin_btn.set_opacity(1.0 if data.get("pinned") else 0.5)
+        self.refresh_title()
+        if data.get("rolled"):
+            self.apply_roll()
 
     # ---------- helpers ----------
     def icon_button(self, icon, tip):
@@ -188,6 +209,11 @@ class Note(Gtk.Window):
         {w} .note-btn {{ padding: 2px 4px; min-height: 0; min-width: 0; color: {text};
                      background: transparent; border: none; box-shadow: none; }}
         {w} .note-btn:hover {{ background-color: rgba(0,0,0,0.12); }}
+        {w} .note-title {{ color: {text}; font-weight: 600; font-size: 12px; }}
+        {w} entry {{ background-color: rgba(255,255,255,0.5); color: {text};
+                     caret-color: {text}; border: none; box-shadow: none;
+                     min-height: 0; padding: 0 4px; border-radius: 3px;
+                     font-size: 12px; font-weight: 600; }}
         {w} .grip {{ color: rgba(0,0,0,0.35); font-size: 11px; }}
         {w} scrolledwindow {{ background-color: {paper}; }}
         """
@@ -200,23 +226,112 @@ class Note(Gtk.Window):
     # Dragging is handled here instead of begin_move_drag() so the window
     # manager never sees a "move" and can't tile/maximize the note at screen
     # edges. We snap to edges and corners ourselves.
+    def is_double_click(self, ev):
+        """Own double-click detection (GDK's is unreliable across child windows)."""
+        gap = Gtk.Settings.get_default().get_property("gtk-double-click-time")
+        last = self.last_click
+        if last and ev.time - last[0] <= gap and abs(ev.x_root - last[1]) <= 6 \
+                and abs(ev.y_root - last[2]) <= 6:
+            self.last_click = None
+            return True
+        self.last_click = (ev.time, ev.x_root, ev.y_root)
+        return False
+
     def on_header_press(self, widget, ev):
-        if ev.button == 1:
-            x, y = self.get_position()
-            self.drag = (ev.x_root - x, ev.y_root - y)
+        if ev.button != 1:
+            return True
+        if self.is_double_click(ev):
+            self.drag = None
+            self.toggle_roll()
+            return True
+        x, y = self.get_position()
+        self.drag = (ev.x_root - x, ev.y_root - y)
+        self.drag_start = (ev.x_root, ev.y_root)
+        self.moved = False
+        tx, ty = self.title_stack.translate_coordinates(self.header, 0, 0)
+        a = self.title_stack.get_allocation()
+        self.press_on_title = tx <= ev.x <= tx + a.width and ty <= ev.y <= ty + a.height
         return True
 
     def on_header_motion(self, widget, ev):
         if not self.drag:
             return False
+        if not self.moved and (abs(ev.x_root - self.drag_start[0]) > 3
+                               or abs(ev.y_root - self.drag_start[1]) > 3):
+            self.moved = True
+        if not self.moved:
+            return True
         x = int(ev.x_root - self.drag[0])
         y = int(ev.y_root - self.drag[1])
         self.move(*self.snap(x, y, ev.x_root, ev.y_root))
         return True
 
     def on_header_release(self, widget, ev):
+        was_click = self.drag and not self.moved and self.press_on_title
         self.drag = None
+        if was_click and not self.editing:
+            self.start_edit()
         return True
+
+    # ---------- title ----------
+    def refresh_title(self):
+        title = self.data.get("title", "").strip()
+        self.title_label.set_text(title or "Title")
+        self.title_label.set_opacity(1.0 if title else 0.45)
+        self.set_title(title or "Sticky Note")
+
+    def start_edit(self):
+        self.editing = True
+        self.title_entry.set_text(self.data.get("title", ""))
+        self.title_stack.set_visible_child_name("entry")
+        self.title_entry.grab_focus()
+        self.title_entry.select_region(0, -1)
+
+    def stop_edit(self, commit):
+        if not self.editing:
+            return
+        self.editing = False
+        if commit:
+            self.data["title"] = self.title_entry.get_text().strip()
+            self.queue_save()
+        self.refresh_title()
+        self.title_stack.set_visible_child_name("label")
+        if not self.data.get("rolled"):
+            self.view.grab_focus()
+
+    def on_title_key(self, _w, ev):
+        if ev.keyval == Gdk.KEY_Escape:
+            self.stop_edit(False)
+            return True
+        return False
+
+    def on_title_click(self, _w, ev):
+        if ev.button == 1 and self.is_double_click(ev):
+            self.toggle_roll()
+            return True
+        return False
+
+    # ---------- roll up ----------
+    def toggle_roll(self):
+        self.stop_edit(True)
+        self.data["rolled"] = not self.data.get("rolled", False)
+        self.apply_roll()
+        self.queue_save()
+
+    def apply_roll(self):
+        rolled = self.data.get("rolled", False)
+        w, h = self.get_size()
+        if rolled:
+            self.scroll.hide()
+            self.grip_row.hide()
+            self.set_size_request(MIN_SIZE[0], -1)
+            self.resize(w, 1)
+        else:
+            self.scroll.show()
+            self.grip_row.show()
+            self.set_size_request(*MIN_SIZE)
+            self.resize(w, max(self.data["size"][1], MIN_SIZE[1]))
+            self.view.grab_focus()
 
     def snap(self, x, y, px, py):
         """Snap the note's edges/corners to the usable screen area (panels excluded)."""
@@ -243,7 +358,10 @@ class Note(Gtk.Window):
     def on_configure(self, *_):
         w, h = self.get_size()
         x, y = self.get_position()
-        self.data["size"] = [w, h]
+        if self.data.get("rolled"):
+            self.data["size"][0] = w  # keep the full height for when it unrolls
+        else:
+            self.data["size"] = [w, h]
         self.data["pos"] = [x, y]
         self.queue_save()
         return False
