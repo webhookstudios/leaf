@@ -14,7 +14,7 @@ import tempfile
 
 import gi
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
@@ -41,6 +41,9 @@ MIN_SIZE = (170, 160)
 CLICK_SLOP = 8  # px the pointer may wander during a click before it counts as a drag
 SNAP_DIST = 24  # px from a screen edge/corner at which a note snaps
 FONT_SIZES = [10, 11, 12, 13, 14, 16, 18, 22]
+# Relative sizes for individual words (multiplies the note's base text size)
+SCALES = [0.7, 0.85, 1.0, 1.25, 1.5, 2.0, 2.6]
+FORMAT_TAGS = (["bold", "underline"] + [f"scale-{x}" for x in SCALES if x != 1.0])
 
 
 def load_notes():
@@ -90,8 +93,29 @@ class Note(Gtk.Window):
         self.get_style_context().add_class(self.cls)
         self.add_events(Gdk.EventMask.STRUCTURE_MASK)
 
+        outer = Gtk.Box()
+        self.add(outer)
+
+        # Grab bar: a strip down the left edge that only ever moves the note, so
+        # you can reposition it without risking a click on the title.
+        self.grab_bar = Gtk.EventBox()
+        self.grab_bar.set_size_request(16, -1)
+        self.grab_bar.set_tooltip_text("Drag to move")
+        self.grab_bar.get_style_context().add_class("grab-bar")
+        self.grab_bar.add_events(Gdk.EventMask.POINTER_MOTION_MASK
+                                 | Gdk.EventMask.BUTTON_RELEASE_MASK)
+        dots = Gtk.Label(label="\u22ee")
+        dots.get_style_context().add_class("grab-dots")
+        self.grab_bar.add(dots)
+        self.grab_bar.connect("button-press-event", self.on_bar_press)
+        self.grab_bar.connect("motion-notify-event", self.on_header_motion)
+        self.grab_bar.connect("button-release-event", self.on_header_release)
+        self.grab_bar.connect("realize", lambda w: w.get_window().set_cursor(
+            Gdk.Cursor.new_from_name(w.get_display(), "grab")))
+        outer.pack_start(self.grab_bar, False, False, 0)
+
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.add(root)
+        outer.pack_start(root, True, True, 0)
 
         # ---- header: drag handle + buttons ----
         self.header = Gtk.EventBox()
@@ -102,6 +126,8 @@ class Note(Gtk.Window):
         self.header.connect("motion-notify-event", self.on_header_motion)
         self.header.connect("button-release-event", self.on_header_release)
         self.drag = None
+        self.moved = False
+        self.press_on_title = False
         hbox = Gtk.Box(spacing=2)
         self.header.add(hbox)
 
@@ -153,8 +179,18 @@ class Note(Gtk.Window):
         self.view.set_top_margin(8)
         self.view.set_bottom_margin(20)  # keeps the last line clear of the grip
         self.buf = self.view.get_buffer()
+        self.make_tags()
         self.buf.set_text(data.get("text", ""))
+        self.load_formatting(data.get("tags", []))
         self.buf.connect("changed", self.on_changed)
+        # connect_after: the tag must already be applied when we read it back
+        self.buf.connect_after("apply-tag", lambda *_: self.sync_data())
+        self.buf.connect_after("remove-tag", lambda *_: self.sync_data())
+        self.buf.connect("notify::has-selection", self.on_selection_changed)
+        self.view.add_events(Gdk.EventMask.BUTTON_RELEASE_MASK | Gdk.EventMask.KEY_RELEASE_MASK)
+        self.view.connect("button-release-event", self.on_view_release)
+        self.view.connect("key-release-event", self.on_view_key_release)
+        self.build_selection_popover()
         scroll.set_shadow_type(Gtk.ShadowType.NONE)
         scroll.add(self.view)
 
@@ -215,6 +251,9 @@ class Note(Gtk.Window):
         {w} .note-btn {{ padding: 2px 4px; min-height: 0; min-width: 0; color: {text};
                      background: transparent; border: none; box-shadow: none; }}
         {w} .note-btn:hover {{ background-color: rgba(0,0,0,0.12); }}
+        {w} .grab-bar {{ background-color: {header}; min-width: 14px; }}
+        {w} .grab-bar:hover {{ background-color: rgba(0,0,0,0.14); }}
+        {w} .grab-dots {{ color: {text}; opacity: 0.6; font-size: 14px; font-weight: 700; }}
         {w} .note-title {{ color: {text}; font-weight: 600; font-size: 12px; }}
         {w} entry {{ background-color: rgba(255,255,255,0.5); color: {text};
                      caret-color: {text}; border: none; box-shadow: none;
@@ -267,6 +306,15 @@ class Note(Gtk.Window):
         self.press_on_title = tx <= ev.x <= tx + a.width and ty <= ev.y <= ty + a.height
         return True
 
+    def on_bar_press(self, widget, ev):
+        if ev.button == 1:
+            x, y = self.get_position()
+            self.drag = (ev.x_root - x, ev.y_root - y)
+            self.drag_start = (ev.x_root, ev.y_root)
+            self.moved = False
+            self.press_on_title = False
+        return True
+
     def on_header_motion(self, widget, ev):
         if not self.drag:
             return False
@@ -287,6 +335,157 @@ class Note(Gtk.Window):
         if was_click and not self.editing:
             self.start_edit()
         return True
+
+    # ---------- rich text ----------
+    def make_tags(self):
+        self.buf.create_tag("bold", weight=Pango.Weight.BOLD)
+        self.buf.create_tag("underline", underline=Pango.Underline.SINGLE)
+        for x in SCALES:
+            if x != 1.0:
+                self.buf.create_tag(f"scale-{x}", scale=x)
+
+    def load_formatting(self, runs):
+        table = self.buf.get_tag_table()
+        n = self.buf.get_char_count()
+        for start, end, name in runs:
+            tag = table.lookup(name)
+            if tag and 0 <= start < end <= n:
+                self.buf.apply_tag(tag, self.buf.get_iter_at_offset(start),
+                                   self.buf.get_iter_at_offset(end))
+
+    def collect_formatting(self):
+        runs = []
+        table = self.buf.get_tag_table()
+        for name in FORMAT_TAGS:
+            tag = table.lookup(name)
+            it = self.buf.get_start_iter()
+            while True:
+                if not it.has_tag(tag) and not it.forward_to_tag_toggle(tag):
+                    break
+                start = it.get_offset()
+                more = it.forward_to_tag_toggle(tag)
+                runs.append([start, it.get_offset(), name])
+                if not more:
+                    break
+        return runs
+
+    def sync_data(self):
+        start, end = self.buf.get_bounds()
+        self.data["text"] = self.buf.get_text(start, end, True)
+        self.data["tags"] = self.collect_formatting()
+        self.queue_save()
+
+    def selection_bounds(self):
+        b = self.buf.get_selection_bounds()
+        return b if b else None
+
+    def toggle_format(self, name):
+        sel = self.selection_bounds()
+        if not sel:
+            return
+        s, e = sel
+        tag = self.buf.get_tag_table().lookup(name)
+        it, all_tagged = s.copy(), True
+        while it.compare(e) < 0:
+            if not it.has_tag(tag):
+                all_tagged = False
+                break
+            it.forward_char()
+        (self.buf.remove_tag if all_tagged else self.buf.apply_tag)(tag, s, e)
+
+    def step_scale(self, delta):
+        sel = self.selection_bounds()
+        if not sel:
+            return
+        s, e = sel
+        cur = 1.0
+        for t in s.get_tags():
+            if t.props.name and t.props.name.startswith("scale-"):
+                cur = float(t.props.name[6:])
+        i = min(range(len(SCALES)), key=lambda j: abs(SCALES[j] - cur))
+        new = SCALES[max(0, min(len(SCALES) - 1, i + delta))]
+        table = self.buf.get_tag_table()
+        for x in SCALES:
+            if x != 1.0:
+                self.buf.remove_tag(table.lookup(f"scale-{x}"), s, e)
+        if new != 1.0:
+            self.buf.apply_tag(table.lookup(f"scale-{new}"), s, e)
+
+    # ---------- selection popup (cut/copy/paste + formatting) ----------
+    def build_selection_popover(self):
+        pop = Gtk.Popover.new(self.view)
+        pop.set_modal(False)  # keep the selection and keyboard focus in the text
+        pop.set_position(Gtk.PositionType.TOP)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        box.set_border_width(6)
+
+        def btn(child, tip, fn):
+            b = Gtk.Button()
+            b.set_focus_on_click(False)
+            b.set_tooltip_text(tip)
+            b.add(child)
+            b.connect("clicked", lambda *_: fn())
+            return b
+
+        def icon(name):
+            return Gtk.Image.new_from_icon_name(name, Gtk.IconSize.MENU)
+
+        def text(markup):
+            l = Gtk.Label()
+            l.set_markup(markup)
+            return l
+
+        row1 = Gtk.Box(spacing=4, homogeneous=True)
+        row1.pack_start(btn(icon("edit-cut-symbolic"), "Cut", lambda: self.clip_action("cut")), True, True, 0)
+        row1.pack_start(btn(icon("edit-copy-symbolic"), "Copy", lambda: self.clip_action("copy")), True, True, 0)
+        row1.pack_start(btn(icon("edit-paste-symbolic"), "Paste", lambda: self.clip_action("paste")), True, True, 0)
+        row2 = Gtk.Box(spacing=4, homogeneous=True)
+        row2.pack_start(btn(text("<b>B</b>"), "Bold (Ctrl+B)", lambda: self.toggle_format("bold")), True, True, 0)
+        row2.pack_start(btn(text("<u>U</u>"), "Underline (Ctrl+U)", lambda: self.toggle_format("underline")), True, True, 0)
+        row2.pack_start(btn(text("A\u2212"), "Smaller", lambda: self.step_scale(-1)), True, True, 0)
+        row2.pack_start(btn(text("A+"), "Bigger", lambda: self.step_scale(+1)), True, True, 0)
+        box.pack_start(row1, False, False, 0)
+        box.pack_start(row2, False, False, 0)
+        pop.add(box)
+        box.show_all()
+        self.sel_pop = pop
+
+    def clip_action(self, what):
+        clip = self.view.get_clipboard(Gdk.SELECTION_CLIPBOARD)
+        if what == "cut":
+            self.buf.cut_clipboard(clip, True)
+        elif what == "copy":
+            self.buf.copy_clipboard(clip)
+        else:
+            self.buf.paste_clipboard(clip, None, True)
+        self.sel_pop.popdown()
+        self.view.grab_focus()
+
+    def show_selection_popup(self):
+        sel = self.selection_bounds()
+        if not sel or self.data.get("rolled"):
+            return False
+        s, e = sel
+        r = self.view.get_iter_location(s)
+        x, y = self.view.buffer_to_window_coords(Gtk.TextWindowType.WIDGET, r.x, r.y)
+        vis_h = self.view.get_allocated_height()
+        y = max(0, min(y, vis_h - r.height))
+        self.sel_pop.set_pointing_to(Gdk.Rectangle(max(0, x), y, max(1, r.width), r.height))
+        self.sel_pop.popup()
+        return False
+
+    def on_view_release(self, *_):
+        GLib.idle_add(self.show_selection_popup)  # after GTK has updated the selection
+        return False
+
+    def on_view_key_release(self, _w, ev):
+        if ev.state & Gdk.ModifierType.SHIFT_MASK and self.buf.get_has_selection():
+            self.show_selection_popup()
+        return False
+
+    def on_selection_changed(self, *_):
+        if not self.buf.get_has_selection():
+            self.sel_pop.popdown()
 
     # ---------- title ----------
     def refresh_title(self):
@@ -380,9 +579,7 @@ class Note(Gtk.Window):
         return False
 
     def on_changed(self, *_):
-        start, end = self.buf.get_bounds()
-        self.data["text"] = self.buf.get_text(start, end, True)
-        self.queue_save()
+        self.sync_data()
 
     def on_key(self, _w, ev):
         if ev.state & Gdk.ModifierType.CONTROL_MASK:
@@ -392,6 +589,12 @@ class Note(Gtk.Window):
                 return True
             if k in ("w", "W"):
                 self.delete()
+                return True
+            if k in ("b", "B") and self.buf.get_has_selection():
+                self.toggle_format("bold")
+                return True
+            if k in ("u", "U") and self.buf.get_has_selection():
+                self.toggle_format("underline")
                 return True
         return False
 
