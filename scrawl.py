@@ -14,7 +14,7 @@ import tempfile
 
 import gi
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
@@ -93,29 +93,8 @@ class Note(Gtk.Window):
         self.get_style_context().add_class(self.cls)
         self.add_events(Gdk.EventMask.STRUCTURE_MASK)
 
-        outer = Gtk.Box()
-        self.add(outer)
-
-        # Grab bar: a strip down the left edge that only ever moves the note, so
-        # you can reposition it without risking a click on the title.
-        self.grab_bar = Gtk.EventBox()
-        self.grab_bar.set_size_request(16, -1)
-        self.grab_bar.set_tooltip_text("Drag to move")
-        self.grab_bar.get_style_context().add_class("grab-bar")
-        self.grab_bar.add_events(Gdk.EventMask.POINTER_MOTION_MASK
-                                 | Gdk.EventMask.BUTTON_RELEASE_MASK)
-        dots = Gtk.Label(label="\u22ee")
-        dots.get_style_context().add_class("grab-dots")
-        self.grab_bar.add(dots)
-        self.grab_bar.connect("button-press-event", self.on_bar_press)
-        self.grab_bar.connect("motion-notify-event", self.on_header_motion)
-        self.grab_bar.connect("button-release-event", self.on_header_release)
-        self.grab_bar.connect("realize", lambda w: w.get_window().set_cursor(
-            Gdk.Cursor.new_from_name(w.get_display(), "grab")))
-        outer.pack_start(self.grab_bar, False, False, 0)
-
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        outer.pack_start(root, True, True, 0)
+        self.add(root)
 
         # ---- header: drag handle + buttons ----
         self.header = Gtk.EventBox()
@@ -174,7 +153,7 @@ class Note(Gtk.Window):
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         self.view = Gtk.TextView()
         self.view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
-        self.view.set_left_margin(10)
+        self.view.set_left_margin(4)
         self.view.set_right_margin(10)
         self.view.set_top_margin(8)
         self.view.set_bottom_margin(20)  # keeps the last line clear of the grip
@@ -205,9 +184,35 @@ class Note(Gtk.Window):
         grip.connect("button-press-event", self.on_grip_press)
         grip.connect("realize", lambda w: w.get_window().set_cursor(
             Gdk.Cursor.new_from_name(w.get_display(), "se-resize")))
-        self.body = Gtk.Overlay()
-        self.body.add(scroll)
-        self.body.add_overlay(grip)
+        overlay = Gtk.Overlay()
+        overlay.add(scroll)
+        overlay.add_overlay(grip)
+
+        # Grab bar: a strip down the left of the text that only ever moves the
+        # note, so you can reposition it without risking a click on the title.
+        # It's invisible until the pointer is over it.
+        self.grab_bar = Gtk.EventBox()
+        self.grab_bar.set_size_request(14, -1)
+        self.grab_bar.set_tooltip_text("Drag to move")
+        self.grab_bar.get_style_context().add_class("grab-bar")
+        self.grab_bar.add_events(Gdk.EventMask.POINTER_MOTION_MASK
+                                 | Gdk.EventMask.BUTTON_RELEASE_MASK
+                                 | Gdk.EventMask.ENTER_NOTIFY_MASK
+                                 | Gdk.EventMask.LEAVE_NOTIFY_MASK)
+        dots = Gtk.Label(label="\u22ee")
+        dots.get_style_context().add_class("grab-dots")
+        self.grab_bar.add(dots)
+        self.grab_bar.connect("button-press-event", self.on_bar_press)
+        self.grab_bar.connect("motion-notify-event", self.on_header_motion)
+        self.grab_bar.connect("button-release-event", self.on_bar_release)
+        self.grab_bar.connect("enter-notify-event", lambda *_: self.show_bar(True))
+        self.grab_bar.connect("leave-notify-event", self.on_bar_leave)
+        self.grab_bar.connect("realize", lambda w: w.get_window().set_cursor(
+            Gdk.Cursor.new_from_name(w.get_display(), "grab")))
+
+        self.body = Gtk.Box()
+        self.body.pack_start(self.grab_bar, False, False, 0)
+        self.body.pack_start(overlay, True, True, 0)
         root.pack_start(self.body, True, True, 0)
 
         self.connect("configure-event", self.on_configure)
@@ -251,9 +256,10 @@ class Note(Gtk.Window):
         {w} .note-btn {{ padding: 2px 4px; min-height: 0; min-width: 0; color: {text};
                      background: transparent; border: none; box-shadow: none; }}
         {w} .note-btn:hover {{ background-color: rgba(0,0,0,0.12); }}
-        {w} .grab-bar {{ background-color: {header}; min-width: 14px; }}
-        {w} .grab-bar:hover {{ background-color: rgba(0,0,0,0.14); }}
-        {w} .grab-dots {{ color: {text}; opacity: 0.6; font-size: 14px; font-weight: 700; }}
+        {w} .grab-bar {{ background-color: {paper}; }}
+        {w} .grab-bar.show {{ background-color: {header}; }}
+        {w} .grab-dots {{ color: {text}; opacity: 0; font-size: 14px; font-weight: 700; }}
+        {w} .grab-bar.show .grab-dots {{ opacity: 0.6; }}
         {w} .note-title {{ color: {text}; font-weight: 600; font-size: 12px; }}
         {w} entry {{ background-color: rgba(255,255,255,0.5); color: {text};
                      caret-color: {text}; border: none; box-shadow: none;
@@ -304,6 +310,24 @@ class Note(Gtk.Window):
         tx, ty = self.title_stack.translate_coordinates(self.header, 0, 0)
         a = self.title_stack.get_allocation()
         self.press_on_title = tx <= ev.x <= tx + a.width and ty <= ev.y <= ty + a.height
+        return True
+
+    def show_bar(self, visible):
+        ctx = self.grab_bar.get_style_context()
+        (ctx.add_class if visible else ctx.remove_class)("show")
+
+    def on_bar_leave(self, *_):
+        if not self.drag:  # keep it showing while it's being dragged
+            self.show_bar(False)
+
+    def on_bar_release(self, widget, ev):
+        self.on_header_release(widget, ev)
+        # Hide again if the pointer isn't over the bar any more
+        pointer = Gdk.Display.get_default().get_default_seat().get_pointer()
+        _w, x, y, _m = self.grab_bar.get_window().get_device_position(pointer)
+        a = self.grab_bar.get_allocation()
+        if not (0 <= x < a.width and 0 <= y < a.height):
+            self.show_bar(False)
         return True
 
     def on_bar_press(self, widget, ev):

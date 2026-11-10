@@ -9,7 +9,7 @@ Simple sticky notes for your Linux desktop. Each note is its own window you can 
 - Unlimited notes, each in its own borderless window
 - Name your notes with a title, and double-click the header to roll a note up to just its title bar
 - Format just the words you select: bold, underline, and bigger or smaller text, from a pop-up with cut, copy and paste
-- A grab bar down the left edge that only moves the note, so you can't click the title by accident
+- A grab bar that appears when you hover the left edge and only moves the note, so you can't click the title by accident
 - Snaps to screen edges and corners (no accidental full-screen tiling)
 - 7 pastel colors and adjustable text size
 - "Keep on top" pin
@@ -21,10 +21,10 @@ Simple sticky notes for your Linux desktop. Each note is its own window you can 
 
 ### With the deb package (recommended)
 
-Download `scrawl_1.1.0_all.deb` from the [latest release](https://github.com/webhookstudios/scrawl/releases/latest), then install it:
+Download `scrawl_1.1.1_all.deb` from the [latest release](https://github.com/webhookstudios/scrawl/releases/latest), then install it:
 
 ```bash
-sudo apt install ./scrawl_1.1.0_all.deb
+sudo apt install ./scrawl_1.1.1_all.deb
 ```
 
 Open **Scrawl** from the apps menu (or run `scrawl`). Apt pulls in Python 3 and the GTK 3 bindings automatically.
