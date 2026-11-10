@@ -11,7 +11,7 @@ Simple sticky notes for your Linux desktop. Each note is its own window you can 
 - Format just the words you select: bold, underline, and bigger or smaller text, from a pop-up with cut, copy and paste
 - A grab bar that appears when you hover the left edge and only moves the note, so you can't click the title by accident
 - Snaps to screen edges and corners (no accidental full-screen tiling)
-- 7 pastel colors and adjustable text size
+- 7 pastel colors, adjustable text size, and a font picker for each note
 - "Keep on top" pin
 - Auto-saves text, title, position, size, color, pin and rolled-up state, and saves instantly on logout or shutdown
 - Single instance: launching again brings your notes forward
@@ -21,10 +21,10 @@ Simple sticky notes for your Linux desktop. Each note is its own window you can 
 
 ### With the deb package (recommended)
 
-Download `scrawl_1.1.1_all.deb` from the [latest release](https://github.com/webhookstudios/scrawl/releases/latest), then install it:
+Download `scrawl_1.2.0_all.deb` from the [latest release](https://github.com/webhookstudios/scrawl/releases/latest), then install it:
 
 ```bash
-sudo apt install ./scrawl_1.1.1_all.deb
+sudo apt install ./scrawl_1.2.0_all.deb
 ```
 
 Open **Scrawl** from the apps menu (or run `scrawl`). Apt pulls in Python 3 and the GTK 3 bindings automatically.
@@ -65,7 +65,7 @@ Keep the folder in place: the `scrawl` command links to `scrawl.py`.
 | Name a note | Click "Title" in the header (or right-click the header), type, press Enter |
 | Roll up / unroll | Double-click the header |
 | Resize | Drag the ◢ corner |
-| Color / text size | ☰ menu |
+| Color / font / text size | ☰ menu |
 | Delete note | ✕ button or `Ctrl+W` (asks first if it has text) |
 
 Tip: bind `scrawl --new` to a shortcut in Settings → Keyboard → Custom Shortcuts.

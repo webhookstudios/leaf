@@ -14,7 +14,7 @@ import tempfile
 
 import gi
 
-__version__ = "1.1.1"
+__version__ = "1.2.0"
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
@@ -37,7 +37,7 @@ COLORS = {
 }
 DEFAULT_COLOR = "yellow"
 DEFAULT_SIZE = (280, 300)
-MIN_SIZE = (170, 160)
+MIN_SIZE = (170, 210)  # tall enough for the settings menu to fit inside
 CLICK_SLOP = 8  # px the pointer may wander during a click before it counts as a drag
 SNAP_DIST = 24  # px from a screen edge/corner at which a note snaps
 FONT_SIZES = [10, 11, 12, 13, 14, 16, 18, 22]
@@ -242,10 +242,12 @@ class Note(Gtk.Window):
         paper, header, text = COLORS.get(self.data["color"], COLORS[DEFAULT_COLOR])
         size = self.data.get("font_size", 13)
         w = f"window.{self.cls}"
+        family = (self.data.get("font") or "").replace('"', "").replace("\\", "")
+        family_css = f'\n            font-family: "{family}";' if family else ""
         css = f"""
         {w}, {w} textview, {w} textview text {{
             background-color: {paper}; color: {text};
-            font-size: {size}px;
+            font-size: {size}px;{family_css}
             caret-color: {text};
         }}
         {w} textview text selection {{
@@ -665,6 +667,23 @@ class Note(Gtk.Window):
             swatches.attach(b, i % 4, i // 4, 1, 1)
         box.pack_start(swatches, False, False, 0)
 
+        # Font: opens the system font picker (families only). x resets to default.
+        frow = Gtk.Box(spacing=4)
+        fbtn = Gtk.Button(label=self.data.get("font") or "Default font")
+        fbtn.set_focus_on_click(False)
+        fbtn.set_tooltip_text("Choose a font for this note")
+        fbtn.get_child().set_ellipsize(Pango.EllipsizeMode.END)
+        fbtn.get_child().set_max_width_chars(11)
+        fbtn.connect("clicked", lambda *_: (pop.popdown(), GLib.idle_add(self.choose_font)))
+        frow.pack_start(fbtn, True, True, 0)
+        if self.data.get("font"):
+            rst = Gtk.Button(label="\u2715")
+            rst.set_focus_on_click(False)
+            rst.set_tooltip_text("Back to the default font")
+            rst.connect("clicked", lambda *_: (self.set_font(None), pop.popdown()))
+            frow.pack_start(rst, False, False, 0)
+        box.pack_start(frow, False, False, 0)
+
         sizes = Gtk.Box(spacing=6, homogeneous=True)
         smaller = Gtk.Button.new_with_label("A−")
         bigger = Gtk.Button.new_with_label("A+")
@@ -679,6 +698,28 @@ class Note(Gtk.Window):
         pop.add(box)
         box.show_all()
         pop.popup()
+
+    def choose_font(self):
+        dlg = Gtk.FontChooserDialog(title="Choose a font", transient_for=self, modal=True)
+        dlg.set_level(Gtk.FontChooserLevel.FAMILY)  # just the family; size is set elsewhere
+        dlg.set_preview_text("The quick brown fox jumps over the lazy dog")
+        current = self.data.get("font")
+        if current:
+            dlg.set_font(f"{current} 12")
+        if dlg.run() == Gtk.ResponseType.OK:
+            desc = dlg.get_font_desc()
+            if desc and desc.get_family():
+                self.set_font(desc.get_family())
+        dlg.destroy()
+        return False
+
+    def set_font(self, family):
+        if family:
+            self.data["font"] = family
+        else:
+            self.data.pop("font", None)
+        self.apply_style()
+        self.queue_save()
 
     def set_color(self, _b, name, pop):
         self.data["color"] = name
