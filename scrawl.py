@@ -14,6 +14,8 @@ import tempfile
 
 import gi
 
+__version__ = "1.0.0"
+
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
@@ -149,25 +151,28 @@ class Note(Gtk.Window):
         self.view.set_left_margin(10)
         self.view.set_right_margin(10)
         self.view.set_top_margin(8)
-        self.view.set_bottom_margin(8)
+        self.view.set_bottom_margin(20)  # keeps the last line clear of the grip
         self.buf = self.view.get_buffer()
         self.buf.set_text(data.get("text", ""))
         self.buf.connect("changed", self.on_changed)
+        scroll.set_shadow_type(Gtk.ShadowType.NONE)
         scroll.add(self.view)
-        root.pack_start(scroll, True, True, 0)
 
-        # ---- resize grip (bottom-right) ----
-        self.grip_row = grip_row = Gtk.Box()
-        grip_row.pack_start(Gtk.Box(), True, True, 0)
+        # Resize grip floats over the bottom-right corner of the text instead of
+        # living in its own strip, so there's no seam along the bottom edge.
         grip = Gtk.EventBox()
         grip.set_size_request(18, 18)
-        grip.add(Gtk.Label(label="◢"))
+        grip.set_halign(Gtk.Align.END)
+        grip.set_valign(Gtk.Align.END)
+        grip.add(Gtk.Label(label="\u25e2"))
         grip.get_style_context().add_class("grip")
         grip.connect("button-press-event", self.on_grip_press)
         grip.connect("realize", lambda w: w.get_window().set_cursor(
             Gdk.Cursor.new_from_name(w.get_display(), "se-resize")))
-        grip_row.pack_end(grip, False, False, 0)
-        root.pack_start(grip_row, False, False, 0)
+        self.body = Gtk.Overlay()
+        self.body.add(scroll)
+        self.body.add_overlay(grip)
+        root.pack_start(self.body, True, True, 0)
 
         self.connect("configure-event", self.on_configure)
         self.connect("key-press-event", self.on_key)
@@ -216,7 +221,12 @@ class Note(Gtk.Window):
                      min-height: 0; padding: 0 4px; border-radius: 3px;
                      font-size: 12px; font-weight: 600; }}
         {w} .grip {{ color: rgba(0,0,0,0.35); font-size: 11px; }}
-        {w} scrolledwindow {{ background-color: {paper}; }}
+        {w} scrolledwindow, {w} overlay {{ background-color: {paper}; border: none;
+                                           box-shadow: none; }}
+        {w} undershoot, {w} overshoot {{ background: none; background-image: none; }}
+        {w} scrollbar {{ background: transparent; border: none; }}
+        {w} scrollbar slider {{ background-color: rgba(0,0,0,0.28); border: none;
+                                min-width: 6px; min-height: 6px; }}
         """
         self.provider.load_from_data(css.encode())
         Gtk.StyleContext.add_provider_for_screen(
@@ -327,13 +337,11 @@ class Note(Gtk.Window):
         rolled = self.data.get("rolled", False)
         w, h = self.get_size()
         if rolled:
-            self.scroll.hide()
-            self.grip_row.hide()
+            self.body.hide()
             self.set_size_request(MIN_SIZE[0], -1)
             self.resize(w, 1)
         else:
-            self.scroll.show()
-            self.grip_row.show()
+            self.body.show()
             self.set_size_request(*MIN_SIZE)
             self.resize(w, max(self.data["size"][1], MIN_SIZE[1]))
             self.view.grab_focus()
@@ -482,8 +490,13 @@ class Scrawl(Gtk.Application):
         self.add_main_option("new", ord("n"), 0, 0, "Create a new note", None)
         # Logout/shutdown sends SIGTERM (or SIGHUP): save immediately, don't wait
         # for the 0.4s typing debounce.
+        try:
+            from gi.repository import GLibUnix
+            add_signal = lambda sig: GLibUnix.signal_add(GLib.PRIORITY_HIGH, sig, self.on_signal)
+        except ImportError:  # older PyGObject
+            add_signal = lambda sig: GLib.unix_signal_add(GLib.PRIORITY_HIGH, sig, self.on_signal)
         for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
-            GLib.unix_signal_add(GLib.PRIORITY_HIGH, sig, self.on_signal)
+            add_signal(sig)
 
     def on_signal(self):
         self.persist()
@@ -543,4 +556,5 @@ class Scrawl(Gtk.Application):
 
 
 if __name__ == "__main__":
+    GLib.set_prgname("scrawl")  # window class matches scrawl.desktop, so the dock groups it
     sys.exit(Scrawl().run(sys.argv))

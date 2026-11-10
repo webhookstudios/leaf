@@ -24,23 +24,9 @@ mkdir -p "$BIN" "$APPS" "$ICONS"
 
 chmod +x "$DIR/scrawl.py"
 ln -sf "$DIR/scrawl.py" "$BIN/scrawl"
-cp "$DIR/icons/scrawl.svg" "$ICONS/scrawl.svg"
+cp "$DIR/data/scrawl.svg" "$ICONS/scrawl.svg"
 
-cat > "$APPS/scrawl.desktop" <<DESK
-[Desktop Entry]
-Type=Application
-Name=Scrawl
-Comment=Sticky notes for your desktop
-Exec=$BIN/scrawl
-Icon=scrawl
-Categories=Utility;
-Keywords=notes;sticky;memo;
-Actions=new;
-
-[Desktop Action new]
-Name=New Sticky Note
-Exec=$BIN/scrawl --new
-DESK
+sed "s|@EXEC@|$BIN/scrawl|" "$DIR/data/scrawl.desktop.in" > "$APPS/scrawl.desktop"
 
 if [[ "${1:-}" == "--autostart" ]]; then
   mkdir -p "$HOME/.config/autostart"

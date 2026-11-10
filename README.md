@@ -17,6 +17,26 @@ Simple sticky notes for your Linux desktop. Each note is its own window you can 
 
 ## Install
 
+### With the deb package (recommended)
+
+Download `scrawl_1.0.0_all.deb` from the [latest release](https://github.com/webhookstudios/scrawl/releases/latest), then install it:
+
+```bash
+sudo apt install ./scrawl_1.0.0_all.deb
+```
+
+Open **Scrawl** from the apps menu (or run `scrawl`). Apt pulls in Python 3 and the GTK 3 bindings automatically.
+
+To remove it:
+
+```bash
+sudo apt remove scrawl
+```
+
+Your notes are kept in `~/.local/share/scrawl/` and survive removal.
+
+### From source, without root
+
 Requires Python 3 and GTK 3 (preinstalled on Ubuntu desktop). If missing:
 
 ```bash
@@ -59,6 +79,8 @@ or pin Scrawl to the dock from the search results (right-click, then Pin to Dock
 
 ## Uninstall
 
+If you installed the deb, use `sudo apt remove scrawl`. If you installed from source:
+
 ```bash
 ./uninstall.sh          # keeps your notes
 ./uninstall.sh --purge  # also deletes them
@@ -73,3 +95,11 @@ Wayland doesn't let apps position their own windows, so Scrawl runs through XWay
 ## License
 
 MIT
+
+## Building the deb
+
+```bash
+./build-deb.sh
+```
+
+Writes `dist/scrawl_<version>_all.deb` and needs only `dpkg-deb`. The version comes from `__version__` in `scrawl.py`.

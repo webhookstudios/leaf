@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=Scrawl
+GenericName=Sticky Notes
+Comment=Sticky notes for your desktop
+Exec=@EXEC@
+Icon=scrawl
+Terminal=false
+StartupNotify=false
+StartupWMClass=scrawl
+Categories=Utility;GTK;
+Keywords=notes;sticky;memo;reminder;
+Actions=new;
+
+[Desktop Action new]
+Name=New Sticky Note
+Exec=@EXEC@ --new
