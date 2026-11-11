@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 Kaleb Schuster, MIT License
-"""Scrawl - simple sticky notes for the Ubuntu desktop (GTK3)."""
+"""Leaf - simple sticky notes for the Ubuntu desktop (GTK3)."""
 import os
 
 # Wayland doesn't let apps place their own windows; XWayland does.
@@ -21,9 +21,20 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango  # noqa: E402
 
 DATA_DIR = os.path.join(
-    os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "scrawl"
+    os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "leaf"
 )
 DATA_FILE = os.path.join(DATA_DIR, "notes.json")
+# Leaf was called Scrawl. Its notes are copied over the first time Leaf starts;
+# the old folder stays as it was, as a backup.
+OLD_DATA_DIR = os.path.join(
+    os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share")), "scrawl"
+)
+
+
+def bring_over_old_notes():
+    if not os.path.exists(DATA_DIR) and os.path.isdir(OLD_DATA_DIR):
+        import shutil
+        shutil.copytree(OLD_DATA_DIR, DATA_DIR)
 
 # name: (paper, header, text)
 COLORS = {
@@ -82,7 +93,7 @@ class Note(Gtk.Window):
         self.save_timer = None
 
         self.set_decorated(False)
-        self.set_icon_name("scrawl")
+        self.set_icon_name("leaf")
         self.set_default_size(*data["size"])
         self.set_skip_taskbar_hint(False)
         self.set_keep_above(data.get("pinned", False))
@@ -756,7 +767,7 @@ def apply_sedge():
     """The Sedge accent color and fonts for Leaf's menus and dialogs.
     Each note keeps its own colors and the font chosen for it."""
     here = os.path.dirname(os.path.realpath(__file__))
-    folder = next((d for d in (os.path.join(here, "sedge"), "/usr/share/scrawl/sedge")
+    folder = next((d for d in (os.path.join(here, "sedge"), "/usr/share/leaf/sedge")
                    if os.path.isfile(os.path.join(d, "sedge-gtk3.css"))), None)
     if folder is None:
         return
@@ -774,9 +785,9 @@ def apply_sedge():
         Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
 
-class Scrawl(Gtk.Application):
+class Leaf(Gtk.Application):
     def __init__(self):
-        super().__init__(application_id="local.scrawl.Scrawl",
+        super().__init__(application_id="io.github.webhookstudios.Leaf",
                          flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
         self.notes = []
         self.started = False
@@ -793,6 +804,7 @@ class Scrawl(Gtk.Application):
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
+        bring_over_old_notes()
         apply_sedge()
 
     def on_signal(self):
@@ -853,5 +865,5 @@ class Scrawl(Gtk.Application):
 
 
 if __name__ == "__main__":
-    GLib.set_prgname("scrawl")  # window class matches scrawl.desktop, so the dock groups it
-    sys.exit(Scrawl().run(sys.argv))
+    GLib.set_prgname("leaf")  # window class matches leaf.desktop, so the dock groups it
+    sys.exit(Leaf().run(sys.argv))

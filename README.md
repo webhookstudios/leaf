@@ -23,21 +23,21 @@ Simple sticky notes for your Linux desktop. Each note is its own window you can 
 
 ### With the deb package (recommended)
 
-Download `scrawl_1.3.0_all.deb` from the [latest release](https://github.com/webhookstudios/scrawl/releases/latest), then install it:
+Download `leaf_1.3.0_all.deb` from the [latest release](https://github.com/webhookstudios/leaf/releases/latest), then install it:
 
 ```bash
-sudo apt install ./scrawl_1.3.0_all.deb
+sudo apt install ./leaf_1.3.0_all.deb
 ```
 
-Open **Leaf** from the apps menu (or run `scrawl`). Apt pulls in Python 3 and the GTK 3 bindings automatically.
+Open **Leaf** from the apps menu (or run `leaf`). Apt pulls in Python 3 and the GTK 3 bindings automatically.
 
 To remove it:
 
 ```bash
-sudo apt remove scrawl
+sudo apt remove leaf
 ```
 
-Your notes are kept in `~/.local/share/scrawl/` and survive removal.
+Your notes are kept in `~/.local/share/leaf/` and survive removal.
 
 ### From source, without root
 
@@ -50,18 +50,18 @@ sudo apt install python3 python3-gi gir1.2-gtk-3.0
 Then:
 
 ```bash
-git clone https://github.com/webhookstudios/scrawl && cd scrawl
-./install.sh              # app menu + `scrawl` command
+git clone https://github.com/webhookstudios/leaf && cd leaf
+./install.sh              # app menu + `leaf` command
 ./install.sh --autostart  # ...and start at login
 ```
 
-Keep the folder in place: the `scrawl` command links to `scrawl.py`.
+Keep the folder in place: the `leaf` command links to `leaf.py`.
 
 ## Use
 
 | Action | How |
 | --- | --- |
-| New note | `+` button, `Ctrl+N`, or `scrawl --new` |
+| New note | `+` button, `Ctrl+N`, or `leaf --new` |
 | Move | Drag the grab bar on the left edge (or the header); notes snap to screen edges and corners |
 | Format words | Select text; a pop-up offers cut, copy, paste, **B**, <u>U</u>, A− and A+. Also `Ctrl+B` and `Ctrl+U` |
 | Name a note | Click "Title" in the header (or right-click the header), type, press Enter |
@@ -70,7 +70,7 @@ Keep the folder in place: the `scrawl` command links to `scrawl.py`.
 | Color / font / text size | ☰ menu |
 | Delete note | ✕ button or `Ctrl+W` (asks first if it has text) |
 
-Tip: bind `scrawl --new` to a shortcut in Settings → Keyboard → Custom Shortcuts.
+Tip: bind `leaf --new` to a shortcut in Settings → Keyboard → Custom Shortcuts.
 
 ## Troubleshooting
 
@@ -84,14 +84,14 @@ or pin Leaf to the dock from the search results (right-click, then Pin to Dock).
 
 ## Uninstall
 
-If you installed the deb, use `sudo apt remove scrawl`. If you installed from source:
+If you installed the deb, use `sudo apt remove leaf`. If you installed from source:
 
 ```bash
 ./uninstall.sh          # keeps your notes
 ./uninstall.sh --purge  # also deletes them
 ```
 
-Notes live in `~/.local/share/scrawl/notes.json`.
+Notes live in `~/.local/share/leaf/notes.json`.
 
 ## Notes on Wayland
 
@@ -107,4 +107,4 @@ MIT
 ./build-deb.sh
 ```
 
-Writes `dist/scrawl_<version>_all.deb` and needs only `dpkg-deb`. The version comes from `__version__` in `scrawl.py`.
+Writes `dist/leaf_<version>_all.deb` and needs only `dpkg-deb`. The version comes from `__version__` in `leaf.py`.

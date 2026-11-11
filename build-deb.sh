@@ -1,35 +1,35 @@
 #!/bin/sh
-# Builds dist/scrawl_<version>_all.deb. Needs only dpkg-deb.
+# Builds dist/leaf_<version>_all.deb. Needs only dpkg-deb.
 #
-# The package installs Scrawl for every user of the machine:
-#   /usr/bin/scrawl                              the app
+# The package installs Leaf for every user of the machine:
+#   /usr/bin/leaf                              the app
 #   /usr/share/applications, /usr/share/icons   apps-menu entry and icon
 set -e
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$ROOT/scrawl.py")"
-[ -n "$VERSION" ] || { echo "Could not read __version__ from scrawl.py" >&2; exit 1; }
+VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$ROOT/leaf.py")"
+[ -n "$VERSION" ] || { echo "Could not read __version__ from leaf.py" >&2; exit 1; }
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
 install -d "$STAGE/DEBIAN" "$STAGE/usr/bin" \
     "$STAGE/usr/share/applications" \
     "$STAGE/usr/share/icons/hicolor/scalable/apps" \
-    "$STAGE/usr/share/doc/scrawl"
+    "$STAGE/usr/share/doc/leaf"
 
-install -m 755 "$ROOT/scrawl.py" "$STAGE/usr/bin/scrawl"
-install -d "$STAGE/usr/share/scrawl"
-cp -r "$ROOT/sedge" "$STAGE/usr/share/scrawl/"
-find "$STAGE/usr/share/scrawl/sedge" -type f -exec chmod 644 {} +
-install -m 644 "$ROOT/data/scrawl.svg" "$STAGE/usr/share/icons/hicolor/scalable/apps/"
-sed 's|@EXEC@|scrawl|' "$ROOT/data/scrawl.desktop.in" \
-    > "$STAGE/usr/share/applications/scrawl.desktop"
-chmod 644 "$STAGE/usr/share/applications/scrawl.desktop"
+install -m 755 "$ROOT/leaf.py" "$STAGE/usr/bin/leaf"
+install -d "$STAGE/usr/share/leaf"
+cp -r "$ROOT/sedge" "$STAGE/usr/share/leaf/"
+find "$STAGE/usr/share/leaf/sedge" -type f -exec chmod 644 {} +
+install -m 644 "$ROOT/data/leaf.svg" "$STAGE/usr/share/icons/hicolor/scalable/apps/"
+sed 's|@EXEC@|leaf|' "$ROOT/data/leaf.desktop.in" \
+    > "$STAGE/usr/share/applications/leaf.desktop"
+chmod 644 "$STAGE/usr/share/applications/leaf.desktop"
 
-cat > "$STAGE/usr/share/doc/scrawl/copyright" <<EOT
+cat > "$STAGE/usr/share/doc/leaf/copyright" <<EOT
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Leaf (formerly Scrawl)
-Source: https://github.com/webhookstudios/scrawl
+Source: https://github.com/webhookstudios/leaf
 
 Files: *
 Copyright: 2026 Kaleb Schuster
@@ -52,33 +52,36 @@ License: Expat
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
 
-Files: usr/share/scrawl/sedge/fonts/*
+Files: usr/share/leaf/sedge/fonts/*
 Copyright: 2023 The Young Serif Project Authors; 2015 The Public Sans Project Authors
 License: OFL-1.1
  The full license texts are in the same folder.
 EOT
-chmod 644 "$STAGE/usr/share/doc/scrawl/copyright"
+chmod 644 "$STAGE/usr/share/doc/leaf/copyright"
 
+# Replaces/Breaks take over from this app's old package name, scrawl.
 cat > "$STAGE/DEBIAN/control" <<EOT
-Package: scrawl
+Package: leaf
 Version: $VERSION
 Architecture: all
 Maintainer: webhookstudios <354619278+webhookstudios@users.noreply.github.com>
 Installed-Size: $(du -sk "$STAGE/usr" | cut -f1)
 Depends: python3, python3-gi, gir1.2-gtk-3.0
+Replaces: scrawl (<< 2~)
+Breaks: scrawl (<< 2~)
 Section: utils
 Priority: optional
-Homepage: https://github.com/webhookstudios/scrawl
+Homepage: https://github.com/webhookstudios/leaf
 Description: Sticky notes for your Linux desktop
  Leaf (formerly Scrawl) puts simple sticky notes on your desktop. Each note is its own window
  that you can move, resize, recolor, name and roll up to its title bar. Notes
  snap to screen edges and corners, can be kept on top, and save automatically.
  .
- Open Leaf from the apps menu, or run "scrawl --new" to add a note.
+ Open Leaf from the apps menu, or run "leaf --new" to add a note.
 EOT
 
 # Folders are created with the builder's umask; packages want 755.
 find "$STAGE" -type d -exec chmod 755 {} +
 
 mkdir -p "$ROOT/dist"
-dpkg-deb --root-owner-group --build "$STAGE" "$ROOT/dist/scrawl_${VERSION}_all.deb"
+dpkg-deb --root-owner-group --build "$STAGE" "$ROOT/dist/leaf_${VERSION}_all.deb"
