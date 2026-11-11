@@ -14,7 +14,7 @@ import tempfile
 
 import gi
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("Gdk", "3.0")
@@ -679,7 +679,7 @@ class Note(Gtk.Window):
         if self.data.get("font"):
             rst = Gtk.Button(label="\u2715")
             rst.set_focus_on_click(False)
-            rst.set_tooltip_text("Back to the default font")
+            rst.set_tooltip_text("Reset the font")
             rst.connect("clicked", lambda *_: (self.set_font(None), pop.popdown()))
             frow.pack_start(rst, False, False, 0)
         box.pack_start(frow, False, False, 0)
@@ -749,6 +749,31 @@ class Note(Gtk.Window):
         self.app.remove_note(self)
 
 
+SEDGE_FONTS = ("YoungSerif-Regular.ttf", "PublicSans[wght].ttf", "PublicSans-Italic[wght].ttf")
+
+
+def apply_sedge():
+    """The Sedge accent color and fonts for Leaf's menus and dialogs.
+    Each note keeps its own colors and the font chosen for it."""
+    here = os.path.dirname(os.path.realpath(__file__))
+    folder = next((d for d in (os.path.join(here, "sedge"), "/usr/share/scrawl/sedge")
+                   if os.path.isfile(os.path.join(d, "sedge-gtk3.css"))), None)
+    if folder is None:
+        return
+    try:
+        gi.require_version("PangoCairo", "1.0")
+        from gi.repository import PangoCairo
+        fontmap = PangoCairo.FontMap.get_default()
+        for name in SEDGE_FONTS:
+            fontmap.add_font_file(os.path.join(folder, "fonts", name))
+    except Exception:  # the system font is fine
+        pass
+    provider = Gtk.CssProvider()
+    provider.load_from_path(os.path.join(folder, "sedge-gtk3.css"))
+    Gtk.StyleContext.add_provider_for_screen(
+        Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+
 class Scrawl(Gtk.Application):
     def __init__(self):
         super().__init__(application_id="local.scrawl.Scrawl",
@@ -765,6 +790,10 @@ class Scrawl(Gtk.Application):
             add_signal = lambda sig: GLib.unix_signal_add(GLib.PRIORITY_HIGH, sig, self.on_signal)
         for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
             add_signal(sig)
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        apply_sedge()
 
     def on_signal(self):
         self.persist()

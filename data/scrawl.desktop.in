@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=Scrawl
+Name=Leaf
 GenericName=Sticky Notes
 Comment=Sticky notes for your desktop
 Exec=@EXEC@
@@ -9,7 +9,7 @@ Terminal=false
 StartupNotify=false
 StartupWMClass=scrawl
 Categories=Utility;GTK;
-Keywords=notes;sticky;memo;reminder;
+Keywords=scrawl;sedge;notes;sticky;memo;reminder;
 Actions=new;
 
 [Desktop Action new]

@@ -18,6 +18,9 @@ install -d "$STAGE/DEBIAN" "$STAGE/usr/bin" \
     "$STAGE/usr/share/doc/scrawl"
 
 install -m 755 "$ROOT/scrawl.py" "$STAGE/usr/bin/scrawl"
+install -d "$STAGE/usr/share/scrawl"
+cp -r "$ROOT/sedge" "$STAGE/usr/share/scrawl/"
+find "$STAGE/usr/share/scrawl/sedge" -type f -exec chmod 644 {} +
 install -m 644 "$ROOT/data/scrawl.svg" "$STAGE/usr/share/icons/hicolor/scalable/apps/"
 sed 's|@EXEC@|scrawl|' "$ROOT/data/scrawl.desktop.in" \
     > "$STAGE/usr/share/applications/scrawl.desktop"
@@ -25,7 +28,7 @@ chmod 644 "$STAGE/usr/share/applications/scrawl.desktop"
 
 cat > "$STAGE/usr/share/doc/scrawl/copyright" <<EOT
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Scrawl
+Upstream-Name: Leaf (formerly Scrawl)
 Source: https://github.com/webhookstudios/scrawl
 
 Files: *
@@ -48,6 +51,11 @@ License: Expat
  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  SOFTWARE.
+
+Files: usr/share/scrawl/sedge/fonts/*
+Copyright: 2023 The Young Serif Project Authors; 2015 The Public Sans Project Authors
+License: OFL-1.1
+ The full license texts are in the same folder.
 EOT
 chmod 644 "$STAGE/usr/share/doc/scrawl/copyright"
 
@@ -62,11 +70,11 @@ Section: utils
 Priority: optional
 Homepage: https://github.com/webhookstudios/scrawl
 Description: Sticky notes for your Linux desktop
- Scrawl puts simple sticky notes on your desktop. Each note is its own window
+ Leaf (formerly Scrawl) puts simple sticky notes on your desktop. Each note is its own window
  that you can move, resize, recolor, name and roll up to its title bar. Notes
  snap to screen edges and corners, can be kept on top, and save automatically.
  .
- Open Scrawl from the apps menu, or run "scrawl --new" to add a note.
+ Open Leaf from the apps menu, or run "scrawl --new" to add a note.
 EOT
 
 # Folders are created with the builder's umask; packages want 755.

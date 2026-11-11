@@ -1,8 +1,10 @@
-# Scrawl
+# Leaf
+
+*Formerly Scrawl. Part of the Sedge family of webhookstudios apps.*
 
 Simple sticky notes for your Linux desktop. Each note is its own window you can drag, resize, recolor and pin on top. Everything saves automatically.
 
-![Scrawl notes](docs/screenshot.png)
+![Leaf notes](docs/screenshot.png)
 
 ## Features
 
@@ -21,13 +23,13 @@ Simple sticky notes for your Linux desktop. Each note is its own window you can 
 
 ### With the deb package (recommended)
 
-Download `scrawl_1.2.0_all.deb` from the [latest release](https://github.com/webhookstudios/scrawl/releases/latest), then install it:
+Download `scrawl_1.3.0_all.deb` from the [latest release](https://github.com/webhookstudios/scrawl/releases/latest), then install it:
 
 ```bash
-sudo apt install ./scrawl_1.2.0_all.deb
+sudo apt install ./scrawl_1.3.0_all.deb
 ```
 
-Open **Scrawl** from the apps menu (or run `scrawl`). Apt pulls in Python 3 and the GTK 3 bindings automatically.
+Open **Leaf** from the apps menu (or run `scrawl`). Apt pulls in Python 3 and the GTK 3 bindings automatically.
 
 To remove it:
 
@@ -72,13 +74,13 @@ Tip: bind `scrawl --new` to a shortcut in Settings → Keyboard → Custom Short
 
 ## Troubleshooting
 
-**Scrawl shows up in search but not in the Show Applications grid (GNOME).** GNOME keeps a saved grid layout and doesn't always add new apps to it. Either reset the grid (this clears any custom ordering):
+**Leaf shows up in search but not in the Show Applications grid (GNOME).** GNOME keeps a saved grid layout and doesn't always add new apps to it. Either reset the grid (this clears any custom ordering):
 
 ```bash
 gsettings reset org.gnome.shell app-picker-layout
 ```
 
-or pin Scrawl to the dock from the search results (right-click, then Pin to Dock).
+or pin Leaf to the dock from the search results (right-click, then Pin to Dock).
 
 ## Uninstall
 
@@ -93,7 +95,7 @@ Notes live in `~/.local/share/scrawl/notes.json`.
 
 ## Notes on Wayland
 
-Wayland doesn't let apps position their own windows, so Scrawl runs through XWayland (`GDK_BACKEND=x11`). That's what lets notes remember where you put them.
+Wayland doesn't let apps position their own windows, so Leaf runs through XWayland (`GDK_BACKEND=x11`). That's what lets notes remember where you put them.
 
 ## License
 
