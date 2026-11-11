@@ -1,6 +1,6 @@
 # Leaf
 
-*Formerly Scrawl. Part of the Sedge family of webhookstudios apps.*
+*Part of the Sedge family of webhookstudios apps.*
 
 Simple sticky notes for your Linux desktop. Each note is its own window you can drag, resize, recolor and pin on top. Everything saves automatically.
 
@@ -23,10 +23,10 @@ Simple sticky notes for your Linux desktop. Each note is its own window you can 
 
 ### With the deb package (recommended)
 
-Download `leaf_1.3.0_all.deb` from the [latest release](https://github.com/webhookstudios/leaf/releases/latest), then install it:
+Download `leaf_1.3.1_all.deb` from the [latest release](https://github.com/webhookstudios/leaf/releases/latest), then install it:
 
 ```bash
-sudo apt install ./leaf_1.3.0_all.deb
+sudo apt install ./leaf_1.3.1_all.deb
 ```
 
 Open **Leaf** from the apps menu (or run `leaf`). Apt pulls in Python 3 and the GTK 3 bindings automatically.

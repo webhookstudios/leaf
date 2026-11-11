@@ -28,7 +28,7 @@ chmod 644 "$STAGE/usr/share/applications/leaf.desktop"
 
 cat > "$STAGE/usr/share/doc/leaf/copyright" <<EOT
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Leaf (formerly Scrawl)
+Upstream-Name: Leaf
 Source: https://github.com/webhookstudios/leaf
 
 Files: *
@@ -73,7 +73,7 @@ Section: utils
 Priority: optional
 Homepage: https://github.com/webhookstudios/leaf
 Description: Sticky notes for your Linux desktop
- Leaf (formerly Scrawl) puts simple sticky notes on your desktop. Each note is its own window
+ Leaf puts simple sticky notes on your desktop. Each note is its own window
  that you can move, resize, recolor, name and roll up to its title bar. Notes
  snap to screen edges and corners, can be kept on top, and save automatically.
  .
