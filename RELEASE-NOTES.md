@@ -1,11 +1,11 @@
-# Leaf 1.3.1
+# Leaf 1.3.2
 
-A small cleanup release. Everything else works exactly as before.
+A bigger app icon. Everything else works exactly as before.
 
-- The package details in app stores and `apt show` no longer mention an old name.
+- The app icon is bigger, so it sits evenly with your other apps in the dock and the app grid.
 
 Install:
 
 ```bash
-sudo apt install ./leaf_1.3.1_all.deb
+sudo apt install ./leaf_1.3.2_all.deb
 ```
